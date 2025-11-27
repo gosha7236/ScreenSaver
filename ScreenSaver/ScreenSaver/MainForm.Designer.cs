@@ -38,7 +38,6 @@
             // snowFlake
             // 
             snowFlake.BackColor = Color.Transparent;
-         //   snowFlake.Image = Properties.Resources.snowFlake;
             snowFlake.Location = new Point(126, 37);
             snowFlake.Name = "snowFlake";
             snowFlake.Size = new Size(96, 41);
@@ -52,7 +51,7 @@
             AutoScaleMode = AutoScaleMode.Font;
             BackgroundImage = (Image)resources.GetObject("$this.BackgroundImage");
             BackgroundImageLayout = ImageLayout.Stretch;
-            ClientSize = new Size(958, 587);
+            ClientSize = new Size(1782, 753);
             Controls.Add(snowFlake);
             Name = "MainForm";
             StartPosition = FormStartPosition.CenterScreen;

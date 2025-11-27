@@ -1,114 +1,124 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using ScreenSaver.Properties;
 
 namespace ScreenSaver
 {
+    /// <summary>
+    /// основная форма
+    /// </summary>
     public partial class MainForm : Form
     {
         Random rand = new Random();
-        int snowCount = 150;        // количество снежинок
-        PointF[] snowBalls;         // координаты снежинок
-        int[] speed;                // скорость падения
-        int[] size;                 // размер снежинок
-        float[] oscillation;        // фаза колебаний для каждой снежинки
-        Image snowflakeImage;       // изображение снежинки
+        int snowCount = 40;
+        Image snowflakeOriginal;
+        List<Snowflake> snowflakes;
+        List<Image> cachedSnowflakes;
 
+        int width;
+        int height;
+        /// <summary>
+        /// конструктор по умолчанию
+        /// </summary>
         public MainForm()
         {
             InitializeComponent();
+
             this.DoubleBuffered = true;
-            this.FormBorderStyle = FormBorderStyle.None; // без рамки
-            this.WindowState = FormWindowState.Maximized; // на весь экран
-            this.TopMost = true; // поверх всех окон
-            this.BackColor = Color.Black; // черный фон
+            this.FormBorderStyle = FormBorderStyle.None;
+            this.WindowState = FormWindowState.Maximized;
+            this.TopMost = true;
+            this.BackgroundImageLayout = ImageLayout.Stretch;
 
-            // Загружаем изображение снежинки
-            snowflakeImage = Resources.snowFlake; // исправлено имя ресурса
+            width = this.ClientSize.Width;
+            height = this.ClientSize.Height;
 
-            // Инициализация массивов
-            snowBalls = new PointF[snowCount];
-            speed = new int[snowCount];
-            size = new int[snowCount];
-            oscillation = new float[snowCount];
+            this.SizeChanged += (s, e) =>
+            {
+                width = this.ClientSize.Width;
+                height = this.ClientSize.Height;
+            };
 
-            // Создание снежинок по всему экрану
-            CreateSnowflakes();
+            snowflakeOriginal = Resources.snowFlake;
 
-            // Настройка таймера
-            timer1.Interval = 30; // плавное движение
+            CacheSnowflakes();   // кэшируем изображения
+            CreateSnowflakes();  // создаём снежинки
+
+            timer1.Interval = 50;
             timer1.Tick += timer1_Tick;
             timer1.Start();
 
-            this.KeyDown += MainForm_KeyDown;
-            this.MouseClick += (s, e) => this.Close(); // выход по клику мыши
+            this.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) this.Close(); };
+            this.MouseClick += (s, e) => this.Close();
+        }
+
+
+        // 📦 КЭШИРУЕМ готовые снежинки
+        private void CacheSnowflakes()
+        {
+            cachedSnowflakes = new List<Image>();
+            for (int size = 10; size <= 40; size += 3)
+            {
+                Bitmap bmp = new Bitmap(size, size);
+                using (Graphics g = Graphics.FromImage(bmp))
+                {
+                    g.DrawImage(snowflakeOriginal, 0, 0, size, size);
+                }
+                cachedSnowflakes.Add(bmp);
+            }
+        }
+
+        private Image GetCachedSnowflake(int size)
+        {
+            return cachedSnowflakes[Math.Max(0, Math.Min(cachedSnowflakes.Count - 1, (size - 10) / 3))];
         }
 
         private void CreateSnowflakes()
         {
-            int width = Screen.PrimaryScreen.Bounds.Width;
-            int height = Screen.PrimaryScreen.Bounds.Height;
+            snowflakes = new List<Snowflake>();
 
             for (int i = 0; i < snowCount; i++)
             {
-                // ❄️ размещаем снежинки сразу по всему экрану
-                snowBalls[i] = new PointF(rand.Next(0, width), rand.Next(0, height));
-                speed[i] = rand.Next(2, 8);   // скорость падения
-                size[i] = rand.Next(10, 25);  // размер снежинок
-                oscillation[i] = rand.Next(0, 360); // случайная фаза колебаний
+                snowflakes.Add(new Snowflake
+                {
+                    Position = new PointF(rand.Next(0, width), rand.Next(0, height)),
+                    Speed = (float)(rand.Next(15, 25) / 10.0),
+                    Size = rand.Next(10, 40)
+                });
             }
         }
 
         private void timer1_Tick(object sender, EventArgs e)
         {
-            int height = Screen.PrimaryScreen.Bounds.Height;
-            int width = Screen.PrimaryScreen.Bounds.Width;
-
-            for (int i = 0; i < snowCount; i++)
+            foreach (var snowflake in snowflakes)
             {
-                // движение вниз
-                snowBalls[i].Y += speed[i];
+                snowflake.Position = new PointF(
+                    snowflake.Position.X + (float)Math.Sin(snowflake.Position.Y / 30) * 1,
+                    snowflake.Position.Y + snowflake.Speed
+                );
 
-                // немного колебаний по горизонтали для реализма
-                oscillation[i] += 0.05f;
-                snowBalls[i].X += (float)Math.Sin(oscillation[i]) * 1.5f;
-
-                // если снежинка упала или улетела за границы — переносим наверх
-                if (snowBalls[i].Y > height || snowBalls[i].X < -size[i] || snowBalls[i].X > width + size[i])
+                if (snowflake.Position.Y > height)
                 {
-                snowBalls[i].Y = -size[i];
-                snowBalls[i].X = rand.Next(0, width);
-                speed[i] = rand.Next(2, 8);
-                size[i] = rand.Next(10, 25);
+                    snowflake.Position = new PointF(rand.Next(0, width), -snowflake.Size);
+                    snowflake.Speed = (float)(rand.Next(15, 25) / 10.0);
+                    snowflake.Size = rand.Next(10, 40);
+                }
             }
-        }
 
-        Invalidate(); // перерисовать форму
+            this.Refresh();
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
 
-            // Очищаем экран
-            e.Graphics.Clear(Color.Black);
-
-            // Рисуем снежинки
-            for (int i = 0; i < snowCount; i++)
+            foreach (var snowflake in snowflakes)
             {
-                // Проверяем, что изображение загружено
-                if (snowflakeImage != null)
-                {
-                    e.Graphics.DrawImage(snowflakeImage,
-                        snowBalls[i].X, snowBalls[i].Y, size[i], size[i]);
-                }
+                Image img = GetCachedSnowflake((int)snowflake.Size);
+                e.Graphics.DrawImage(img, snowflake.Position.X, snowflake.Position.Y);
             }
-        }
-
-        private void MainForm_KeyDown(object sender, KeyEventArgs e)
-        {
-            this.Close(); // выход по любой клавише
         }
     }
 }
